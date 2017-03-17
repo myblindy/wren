@@ -1,0 +1,139 @@
+﻿<#@ template debug="false" hostspecific="true" language="C#" #>
+<#@ output extension=".cs" #>  
+
+<#@ assembly name="System.Core" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Text" #>
+<#@ import namespace="System.Collections.Generic" #>
+
+<#
+  var commands = new[] {
+	new[] {"mov", "r", "ri"},
+
+	new[] {"add", "ri"},
+	new[] {"sub", "ri"},
+	new[] {"mul", "ri"},
+	new[] {"div", "ri"},
+
+	new[] {"jmp", "l"},
+	new[] {"jez", "l"},
+	new[] {"jgz", "l"},
+	new[] {"jlz", "l"},
+
+	new[] {"slp", "ri"},
+  };
+#>
+
+using Eto.Parse;
+using Eto.Parse.Parsers;
+using wren.Compiler.Internal;
+using wren.Compiler.Internal.Commands;
+using System.Linq;
+using System;
+
+namespace wren.Compiler
+{
+	public partial class ProgrammableComponentCompiler
+	{
+		static private Grammar BuildGrammar()
+		{
+            // whitespace
+            var ws = -Terminals.WhiteSpace;
+
+            // terminals
+            var r = Register.GetValidRegisters().Select(w => (Parser)new LiteralTerminal(w) { CaseSensitive = false }).Aggregate((a, b) => a | b);
+            var i = -Terminals.Set('-') & +Terminals.Digit;
+			var ri = r | i; 
+			var l = +Terminals.LetterOrDigit;
+			var lbldef = l.Named("lbl") & ws & ':';
+
+			// the commands
+            var command = ws & -lbldef & ws & (
+				<# var first = true; #>
+				<# foreach(var cmd in commands) { #>
+					<# if(first) first=false; else Write("|"); #>
+					(Terminals.Literal("<#= cmd[0] #>").Named("cmd") & ws 
+						<# foreach(var item in cmd.Skip(1).Select((val, idx)=>new{val,idx})) { #>
+							<# if(item.idx > 0) { #>
+								& -Terminals.Set(',') & ws
+							<# } #>
+							& (<#= item.val #>.Named("op<#= item.idx #>")) & ws
+						<# } #>
+						)
+				<# } #>
+				);
+
+            // and store the grammar
+            return new Grammar(command);
+		}
+
+		private void ParseCommand(string line)
+		{
+			if(string.IsNullOrWhiteSpace(line))
+				return;
+
+            var m = Grammar.Match(line);
+
+	        if (m.Success)
+				switch ((string)m["cmd"].Value)
+				{
+					<# foreach(var cmd in commands) { #>
+					case "<#= cmd[0] #>":
+						Commands.Add(new Command<#= cmd[0].Substring(0,1).ToUpper() + cmd[0].Substring(1) #>(
+							(string)m["lbl"].Value,
+							<# foreach(var item in cmd.Skip(1).Select((val, idx)=>new{val,idx})) { #>
+								<#= item.idx==0?"":"," #> (string)m["op<#= item.idx #>"].Value
+							<# } #>));
+						return;
+					<# } #>
+				}
+            throw new InvalidOperationException("Invalid command: " + m["cmd"].Value);
+		}
+	}
+}
+
+// Commands boilererplate
+namespace wren.Compiler.Internal.Commands
+{
+	<# foreach(var cmd in commands) { #>
+	public partial class Command<#= cmd[0].Substring(0,1).ToUpper() + cmd[0].Substring(1) #>
+	{
+		// fields
+		<# foreach(var arg in cmd.Skip(1).Select((val, idx)=>new {val, idx})) { #>
+			<# if(arg.val.Contains("r")) { #>
+				internal Register Operand<#= arg.idx + 1 #>Register;
+			<# } #>
+			<# if(arg.val.Contains("i")) { #>
+				internal int Operand<#= arg.idx + 1 #>Number;
+			<# } #>
+			<# if(arg.val.Contains("l")) { #>
+				internal string Operand<#= arg.idx + 1 #>Label;
+			<# } #>
+		<# } #>
+
+		// constructors
+		public Command<#= cmd[0].Substring(0,1).ToUpper() + cmd[0].Substring(1) #>(string label
+			<# foreach(var arg in cmd.Skip(1).Select((val, idx)=>new {val, idx})) { #>
+				, string op<#= arg.idx + 1 #>
+			<# } #>
+		) 
+		{
+			Label = label;
+			<# foreach(var arg in cmd.Skip(1).Select((val, idx)=>new {val, idx})) { #>
+				<# if(arg.val=="r") { #>
+					Operand<#= arg.idx + 1 #>Register = new Register(op<#= arg.idx + 1 #>);
+				<# } #>
+				<# if(arg.val=="i") { #>
+					Operand<#= arg.idx + 1 #>Number = Convert.ToInt32(op<#= arg.idx + 1 #>);
+				<# } #>
+				<# if(arg.val=="ri") { #>
+					SetField(op<#= arg.idx + 1 #>, out Operand<#= arg.idx + 1 #>Number, out Operand<#= arg.idx + 1 #>Register);
+				<# } #>
+				<# if(arg.val=="l") { #>
+					Operand<#= arg.idx + 1 #>Label = op<#= arg.idx + 1 #>;
+				<# } #>
+			<# } #>
+		}
+	}
+	<# } #>
+}
