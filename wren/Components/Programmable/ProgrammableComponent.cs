@@ -13,7 +13,7 @@ namespace wren.Components.Programmable
     {
         private ProgrammableComponentCompiler Compiler = new ProgrammableComponentCompiler();
 
-        public override CommandState State => throw new NotImplementedException();
+        public override CommandState State => Compiler.VM.State;
 
         public ProgrammableComponent(params string[] registers) : base() => Memory = new Memory(registers);
 

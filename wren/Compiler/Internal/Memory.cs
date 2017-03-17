@@ -57,7 +57,7 @@ namespace wren.Compiler.Internal
             if (!loc1.Connections.Contains(tuple1))
                 loc1.Connections.Add(tuple1);
 
-            var loc2 = m1.Registers[r2];
+            var loc2 = m2.Registers[r2];
             var tuple2 = (m1, r1);
             if (!loc2.Connections.Contains(tuple2))
                 loc2.Connections.Add(tuple2);

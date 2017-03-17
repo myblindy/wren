@@ -109,6 +109,7 @@ mov r0 acc");
 mov r0 acc
 add acc
 mov acc r1
+slp 1
 ");
 
             Memory.Connect(input.Memory, "acc", pc.Memory, "r0");
